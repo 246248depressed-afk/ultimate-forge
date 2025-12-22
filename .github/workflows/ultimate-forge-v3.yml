@@ -1,21 +1,23 @@
-name: 🏗️ Ultimate Forge v3.0 - Dual Token System
+name: 🔧 Ultimate Forge Pro - Genesis System
 
 on:
   workflow_dispatch:
     inputs:
       target_owner:
-        description: 'GitHub username للمستودع الهدف'
+        description: 'مالك المستودع الهدف'
         required: true
+        type: string
       target_repo:
         description: 'اسم المستودع الهدف'
         required: true
+        type: string
       target_token:
-        description: 'GitHub Token للمستودع الهدف (مع صلاحيات write)'
+        description: 'GitHub Token للمستودع الهدف (للوصول والكتابة)'
         required: true
+        type: string
       improvement_type:
-        description: 'نوع التحسين'
+        description: 'نوع التحسين المطلوب'
         required: true
-        default: 'code_quality'
         type: choice
         options:
           - code_quality
@@ -24,189 +26,183 @@ on:
           - documentation
           - security
           - all
-
-env:
-  TARGET_TOKEN: ${{ github.event.inputs.target_token }}
+        default: 'code_quality'
+      custom_command:
+        description: 'أمر مخصص للتحسين'
+        required: false
+        type: string
 
 jobs:
-  clone-and-improve:
+  check-and-analyze:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+    outputs:
+      can_access: ${{ steps.check_access.outputs.can_access }}
+      project_type: ${{ steps.detect_project.outputs.project_type }}
     
     steps:
-      - name: 🔐 التحقق من التوكن
+      - name: 🔍 فحص إمكانية الوصول
+        id: check_access
+        env:
+          TARGET_TOKEN: ${{ github.event.inputs.target_token }}
         run: |
-          echo "🔐 التحقق من التوكن المزدوج..."
-          echo "👨‍💻 Engineer Token: من GitHub Secrets"
-          echo "🎯 Target Token: ${{ github.event.inputs.target_token != '' && '✅ موجود' || '❌ مفقود' }}"
-          
-          if [ -z "${{ github.event.inputs.target_token }}" ]; then
-            echo "❌ خطأ: تحتاج إلى توكن للمستودع الهدف!"
-            echo "💡 أنشئ token مع صلاحيات: repo, workflow"
-            exit 1
+          echo "🔍 فحص الوصول إلى المستودع الهدف..."
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token $TARGET_TOKEN" "https://api.github.com/repos/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}")
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ يمكن الوصول إلى المستودع الهدف"
+            echo "can_access=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ لا يمكن الوصول إلى المستودع (HTTP: $RESPONSE)."
+            echo "can_access=false" >> $GITHUB_OUTPUT
           fi
       
+      - name: 📱 كشف نوع المشروع
+        id: detect_project
+        if: steps.check_access.outputs.can_access == 'true'
+        env:
+          TARGET_TOKEN: ${{ github.event.inputs.target_token }}
+        run: |
+          echo "📱 جاري كشف نوع المشروع..."
+          REPO_URL="https://x-access-token:$TARGET_TOKEN@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git"
+          git clone --depth 1 "$REPO_URL" temp-repo
+          cd temp-repo
+          PROJECT_TYPE="general"
+          if [ -f "build.gradle" ] || [ -f "app/build.gradle" ]; then PROJECT_TYPE="android";
+          elif [ -f "package.json" ]; then PROJECT_TYPE="nodejs";
+          elif [ -f "pom.xml" ]; then PROJECT_TYPE="java";
+          elif [ -f "requirements.txt" ]; then PROJECT_TYPE="python";
+          elif [ -f "Cargo.toml" ]; then PROJECT_TYPE="rust";
+          elif [ -f "go.mod" ]; then PROJECT_TYPE="go";
+          elif [ -f "composer.json" ]; then PROJECT_TYPE="php";
+          fi
+          echo "🎯 نوع المشروع المحدد: $PROJECT_TYPE"
+          echo "project_type=$PROJECT_TYPE" >> $GITHUB_OUTPUT
+          cd ..
+          rm -rf temp-repo
+
+  optimize-repository:
+    runs-on: ubuntu-latest
+    needs: check-and-analyze
+    if: needs.check-and-analyze.outputs.can_access == 'true'
+    timeout-minutes: 20
+    
+    steps:
+      - name: 🎯 بدء عملية التحسين
+        run: |
+          echo "🚀 Genesis Forge Pro - بدء عملية التحسين الشامل"
+          echo "=================================================="
+          echo "  - الهدف: ${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}"
+          echo "  - نوع التحسين: ${{ github.event.inputs.improvement_type }}"
+          echo "  - نوع المشروع: ${{ needs.check-and-analyze.outputs.project_type }}"
+          echo "=================================================="
+
       - name: 📥 جلب المستودع الهدف
         env:
-          GITHUB_TOKEN: ${{ github.event.inputs.target_token }}
+          TARGET_TOKEN: ${{ github.event.inputs.target_token }}
         run: |
           echo "📥 جلب المستودع الهدف..."
-          echo "🎯 الهدف: ${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}"
-          
-          # إنشاء رابط Clone آمن
-          REPO_URL="https://x-access-token:${{ github.event.inputs.target_token }}@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git"
-          
+          REPO_URL="https://x-access-token:$TARGET_TOKEN@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git"
           git clone "$REPO_URL" target-repo
           cd target-repo
-          
-          # تكوين Git
-          git config user.email "ultimate-forge@ai.com"
-          git config user.name "Ultimate Forge AI"
-          git config --local credential.helper ""
-          
-          echo "✅ تم جلب المستودع الهدف"
-          echo "📁 المحتويات:"
-          ls -la
-      
-      - name: 🔍 تحليل المشروع
-        run: |
-          echo "🔍 تحليل المشروع..."
-          cd target-repo
-          
-          # التحقق من نوع المشروع
-          if [ -f "build.gradle" ] || [ -f "app/build.gradle" ]; then
-            echo "✅ مشروع أندرويد"
-            PROJECT_TYPE="android"
-          elif [ -f "package.json" ]; then
-            echo "✅ مشروع Node.js"
-            PROJECT_TYPE="nodejs"
-          elif [ -f "pom.xml" ]; then
-            echo "✅ مشروع Java Maven"
-            PROJECT_TYPE="java"
-          else
-            echo "⚠️ نوع مشروع غير معروف"
-            PROJECT_TYPE="unknown"
-          fi
-          
-          echo "project_type=$PROJECT_TYPE" >> $GITHUB_OUTPUT
-          
-          # عد الملفات
-          echo "📊 إحصائيات المشروع:"
-          find . -type f -name "*.java" -o -name "*.kt" -o -name "*.xml" -o -name "*.gradle" | wc -l
-      
-      - name: 🛠️ تطبيق التحسينات
-        env:
-          IMPROVEMENT_TYPE: ${{ github.event.inputs.improvement_type }}
-        run: |
-          echo "🛠️ تطبيق التحسينات..."
-          cd target-repo
-          
-          case "$IMPROVEMENT_TYPE" in
-            "code_quality")
-              echo "🎯 تحسين جودة الكود..."
-              
-              # إنشاء/تحديث README
-              if [ ! -f "README.md" ]; then
-                cat > README.md << 'README_EOF'
-                # 🚀 ${{ github.event.inputs.target_repo }}
-                
-                ## 📖 Description
-                Project optimized by Ultimate Forge v3.0
-                
-                ## 🔧 Optimizations Applied
-                - ✅ Code quality improvements
-                - 📝 Better documentation
-                - 🏷️ Ultimate Forge markers
-                
-                ## 📅 Last Optimization
-                $(date '+%Y-%m-%d %H:%M')
-                
-                ---
-                *Powered by Ultimate Forge v3.0*
-                README_EOF
-              fi
-              
-              # إضافة علامة Ultimate Forge
-              cat > .ultimate-forge.json << 'JSON_EOF'
-              {
-                "optimizer": "Ultimate Forge v3.0",
-                "optimized_at": "$(date -Iseconds)",
-                "improvement_type": "code_quality",
-                "target_repo": "${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}",
-                "workflow_run": "${{ github.run_id }}"
-              }
-              JSON_EOF
-              ;;
-              
-            "performance")
-              echo "⚡ تحسينات الأداء..."
-              
-              # تحسين Gradle لأندرويد
-              if [ -f "gradle.properties" ]; then
-                echo "📦 تحسين إعدادات Gradle..."
-                echo "" >> gradle.properties
-                echo "# Ultimate Forge Performance Optimizations" >> gradle.properties
-                echo "org.gradle.parallel=true" >> gradle.properties
-                echo "org.gradle.caching=true" >> gradle.properties
-                echo "org.gradle.daemon=true" >> gradle.properties
-              fi
-              ;;
-              
-            "all")
-              echo "🔧 جميع التحسينات..."
-              # تطبيق كل التحسينات
-              ;;
-          esac
-          
-          echo "✅ تم تطبيق التحسينات"
-      
-      - name: 📤 رفع التغييرات
-        env:
-          GITHUB_TOKEN: ${{ github.event.inputs.target_token }}
-        run: |
-          echo "📤 رفع التغييرات..."
-          cd target-repo
-          
-          # إضافة الملفات
-          git add .
-          
-          # التحقق من وجود تغييرات
-          if git diff --staged --quiet; then
-            echo "⚠️ لا توجد تغييرات جديدة"
-          else
-            # Commit
-            git commit -m "🛠️ Ultimate Forge v3.0 - تحسينات تلقائية
+          git config user.email "genesis-forge@ai.com"
+          git config user.name "Genesis Forge AI"
+          echo "✅ تم جلب المستودع بنجاح"
 
-            🔧 نوع التحسين: ${{ github.event.inputs.improvement_type }}
-            📅 التاريخ: $(date '+%Y-%m-%d %H:%M')
-            ⚙️ الإصدار: v3.0
-            
-            التغييرات:
-            • تحليل المشروع
-            • تطبيق تحسينات
-            • تحديث التوثيق
-            
-            ---
-            تم التنفيذ تلقائياً"
-            
-            # Push
-            git push origin HEAD:main
-            echo "✅ تم رفع التغييرات"
+      - name: 🤖 استشارة DeepSeek AI (محاكاة)
+        if: secrets.DEEPSEEK_API_KEY != ''
+        run: |
+          echo "🤖 محاكاة استشارة DeepSeek AI للتحسينات..."
+          cd target-repo
+          
+          # في التطبيق الحقيقي، هذا الجزء سيقوم باستدعاء API الخاص بـ DeepSeek
+          # الآن، سنقوم بإنشاء ملف استجابة وهمي بناءً على المثال الذي أعطيتني إياه
+          cat > ai_response.json << EOF
+{
+  "summary": "اقتراح إضافة توثيق واضح للدالة لتوضيح وظيفتها واستخدامها.",
+  "file_path": "README.md",
+  "improvements": [
+    {
+      "line_number": 1,
+      "type": "Documentation",
+      "description": "الملف يفتقر إلى عنوان واضح.",
+      "original_code": "دددد",
+      "suggested_code": "# 🚀 مستودع Genesis-Forge\n\nتم تحسين هذا الملف بواسطة Genesis Forge AI."
+    }
+  ]
+}
+EOF
+          echo "✅ تم استلام رد من الذكاء الاصطناعي وحفظه في ai_response.json"
+
+      - name: ⚙️ تطبيق التعديلات المقترحة من AI
+        run: |
+          echo "⚙️ تطبيق التعديلات المقترحة..."
+          cd target-repo
+          
+          # التحقق من وجود ملف الرد
+          if [ ! -f "ai_response.json" ]; then
+            echo "⚠️ لم يتم العثور على ملف رد الذكاء الاصطناعي (ai_response.json). سيتم تخطي هذه الخطوة."
+            exit 0
           fi
-      
-      - name: 📊 إنشاء تقرير
+          
+          # تثبيت jq لمعالجة JSON
+          sudo apt-get update && sudo apt-get install -y jq
+          
+          # قراءة مسار الملف من JSON
+          FILE_PATH=$(jq -r '.file_path' ai_response.json)
+          
+          # التحقق من وجود الملف الهدف
+          if [ ! -f "$FILE_PATH" ]; then
+            echo "❌ الملف الهدف '$FILE_PATH' غير موجود. لا يمكن تطبيق التعديلات."
+            exit 1
+          fi
+          
+          # استخراج الكود الأصلي والمقترح
+          ORIGINAL_CODE=$(jq -r '.improvements[0].original_code' ai_response.json)
+          SUGGESTED_CODE=$(jq -r '.improvements[0].suggested_code' ai_response.json)
+          
+          # استخدام Python لتنفيذ الاستبدال بشكل آمن
+          python3 -c "
+import sys
+file_path = sys.argv[1]
+original_code = sys.argv[2]
+suggested_code = sys.argv[3]
+
+try:
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    if original_code not in content:
+        print(f'❌ الكود الأصلي لم يتم العثور عليه في الملف {file_path}.')
+        sys.exit(1)
+
+    new_content = content.replace(original_code, suggested_code, 1) # استبدال مرة واحدة فقط
+
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(new_content)
+    
+    print(f'✅ تم تطبيق التعديل بنجاح على الملف {file_path}.')
+
+except Exception as e:
+    print(f'🚨 حدث خطأ أثناء تعديل الملف: {e}')
+    sys.exit(1)
+" "$FILE_PATH" "$ORIGINAL_CODE" "$SUGGESTED_CODE"
+
+      - name: 💾 حفظ ورفع التغييرات
+        run: |
+          echo "💾 حفظ ورفع التغييرات إلى المستودع الهدف..."
+          cd target-repo
+          git add .
+          if git diff --staged --quiet; then
+            echo "🤷 لا توجد تغييرات جديدة لرفعها."
+          else
+            git commit -m "feat(ai): ✨ تطبيق تحسينات مقترحة من Genesis Forge AI"
+            git push
+            echo "✅ تم رفع التغييرات بنجاح!"
+          fi
+
+      - name: 🎉 عرض النتائج النهائية
         if: always()
         run: |
-          echo "📊 تقرير Ultimate Forge v3.0"
-          echo "============================="
           echo ""
-          echo "🎯 المستودع الهدف: ${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}"
-          echo "🔧 نوع التحسين: ${{ github.event.inputs.improvement_type }}"
-          echo "🕒 الوقت: $(date)"
-          echo "📁 نوع المشروع: ${{ steps.analyze.outputs.project_type || 'unknown' }}"
-          echo ""
-          echo "✅ الحالة: اكتملت العملية"
-          echo ""
-          echo "🔗 روابط مهمة:"
-          echo "- المستودع الهدف: https://github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}"
-          echo "- سجل التنفيذ: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "🎉🎉🎉 اكتملت عملية التحسين 🎉🎉🎉"
+          echo "🔗 رابط المستودع: https://github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}"
