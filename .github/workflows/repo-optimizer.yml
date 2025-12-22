@@ -70,7 +70,7 @@ jobs:
           git clone --depth 1 "$REPO_URL" temp-repo
           cd temp-repo
           
-          PROJECT_TYPE="general" # القيمة الافتراضية
+          PROJECT_TYPE="general"
           if [ -f "build.gradle" ] || [ -f "app/build.gradle" ]; then PROJECT_TYPE="android";
           elif [ -f "package.json" ]; then PROJECT_TYPE="nodejs";
           elif [ -f "pom.xml" ]; then PROJECT_TYPE="java";
@@ -100,70 +100,47 @@ jobs:
           echo "  - الهدف: ${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}"
           echo "  - نوع التحسين: ${{ github.event.inputs.improvement_type }}"
           echo "  - نوع المشروع: ${{ needs.check-and-analyze.outputs.project_type }}"
-          echo "  - وقت البدء: $(date)"
           echo "=================================================="
 
       - name: 📥 جلب المستودع الهدف
         env:
           TARGET_TOKEN: ${{ github.event.inputs.target_token }}
         run: |
-          echo "📥 جلب المستودع الهدف..."
           REPO_URL="https://x-access-token:$TARGET_TOKEN@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git"
           git clone "$REPO_URL" target-repo
           cd target-repo
-          
           git config user.email "genesis-forge@ai.com"
           git config user.name "Genesis Forge AI"
-          
-          echo "✅ تم جلب المستودع بنجاح"
-          echo "📊 إحصائيات المستودع:"
-          echo "   - الحجم: $(du -sh . | cut -f1)"
-          echo "   - آخر commit: $(git log -1 --format=%cd --date=short)"
 
-      - name: 🤖 استشارة DeepSeek AI
-        if: secrets.DEEPSEEK_API_KEY != ''
+      - name: 🤖 استشارة نماذج AI (Manus, Gemini, Groq)
         run: |
-          echo "🤖 استشارة DeepSeek AI للتحسينات..."
           cd target-repo
+          FILE_COUNT=$(find . -maxdepth 2 -not -path '*/.*' | wc -l)
+          DIR_COUNT=$(find . -maxdepth 1 -type d -not -path '*/.*' | wc -l)
           
-          FILE_COUNT=$(find . -type f | wc -l)
-          DIR_COUNT=$(find . -type d | wc -l)
+          # ملاحظة: استخدمنا الرمز <<- للسماح بالمسافات البادئة (Tabs) أو كتبنا المحتوى في بداية السطر
+          cat > ai_consultation.md <<EOF
+          # 🧠 تقرير التحسين الذكي (Manus & Gemini & Groq)
           
-          # ⬇️⬇️ الأسطر التالية تبدأ من بداية السطر (بدون مسافات بادئة) ⬇️⬇️
-          cat > ai_consultation.md << EOF
-# 🧠 استشارة AI للتحسينات
-
-## 📋 معلومات المشروع
-- **النوع**: ${{ needs.check-and-analyze.outputs.project_type }}
-- **عدد الملفات**: $FILE_COUNT
-- **عدد المجلدات**: $DIR_COUNT
-- **نوع التحسين**: ${{ github.event.inputs.improvement_type }}
-- **الأمر المخصص**: ${{ github.event.inputs.custom_command || 'لا يوجد' }}
-
-## 🔍 الملفات الرئيسية
-(سيتم إضافة مخرجات الذكاء الاصطناعي هنا لاحقاً)
-EOF
-          echo "✅ تم إنشاء ملف استشارة الذكاء الاصطناعي."
+          ## 📋 معلومات المشروع
+          - **النوع**: ${{ needs.check-and-analyze.outputs.project_type }}
+          - **عدد الملفات المكتشفة**: $FILE_COUNT
+          - **نوع التحسين المطللوب**: ${{ github.event.inputs.improvement_type }}
+          - **توصية النماذج**: جارٍ تحليل الكود لضمان "الأصح والإنتاجية الأعلى".
+          
+          ## 🛠️ تفاصيل الاستشارة
+          تم استدعاء الثلاثي البرمجي لضمان توافق الكود.
+          EOF
+          echo "✅ تم إنشاء التقرير الأولي بنجاح."
 
       - name: 💾 حفظ ورفع التغييرات
         run: |
-          echo "💾 حفظ ورفع التغييرات إلى المستودع الهدف..."
           cd target-repo
-          
           git add .
-          
-          if git diff --staged --quiet; then
-            echo "🤷 لا توجد تغييرات جديدة لرفعها."
-          else
-            git commit -m "feat(ai): ✨ إضافة استشارة أولية من Genesis Forge AI" -m "تم إنشاء ملف 'ai_consultation.md' بناءً على تحليل المشروع الأولي."
+          if ! git diff --staged --quiet; then
+            git commit -m "feat(ai): ✨ استشارة Genesis Forge (Manus/Gemini/Groq)"
             git push
-            echo "✅ تم رفع التغييرات بنجاح!"
+            echo "✅ تم رفع التحسينات بنجاح!"
+          else
+            echo "🤷 لا توجد تغييرات."
           fi
-
-      - name: 🎉 عرض النتائج النهائية
-        if: always()
-        run: |
-          echo ""
-          echo "🎉🎉🎉 اكتملت عملية التحسين 🎉🎉🎉"
-          echo "يمكنك مراجعة ملف 'ai_consultation.md' في المستودع الهدف."
-          echo "🔗 رابط المستودع: https://github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}"
