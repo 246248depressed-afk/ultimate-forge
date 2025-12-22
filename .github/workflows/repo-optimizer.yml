@@ -1,40 +1,9 @@
-name: Repo Optimizer
-
-on:
-  workflow_dispatch:
-    inputs:
-      target_owner:
-        description: 'مالك المستودع الهدف'
-        required: true
-        type: string
-      target_repo:
-        description: 'اسم المستودع الهدف'
-        required: true
-        type: string
-      target_token:
-        description: 'GitHub Token للمستودع الهدف'
-        required: true
-        type: string
-      improvement_type:
-        description: 'نوع التحسين'
-        required: true
-        default: 'code_quality'
-        type: choice
-        options:
-          - code_quality
-          - performance
-          - error_handling
-          - documentation
-          - security
-          - all
+name: Ultimate Forge Pro
+on: workflow_dispatch
 
 jobs:
-  test-workflow:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: ✅ اختبار الاتصال
-        run: |
-          echo "🎯 العملية تعمل!"
-          echo "المستودع: ${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}"
-          echo "النوع: ${{ github.event.inputs.improvement_type }}"
-          echo "✅ نجاح - الـ workflow جاهز!"
+      - name: 🎯 تشغيل من Android
+        run: echo "✅ تم الاتصال بنجاح!"
