@@ -1,4 +1,4 @@
-name: 🔧 Ultimate Forge Pro - Genesis System
+name: Ultimate Forge Pro - Genesis System
 
 on:
   workflow_dispatch:
@@ -12,29 +12,25 @@ on:
         required: true
         type: string
       target_token:
-        description: 'GitHub Token للمستودع الهدف (للوصول والكتابة)'
+        description: 'GitHub Token للمستودع الهدف (للوصول)'
         required: true
         type: string
       improvement_type:
         description: 'نوع التحسين المطلوب'
-        required: true
         type: choice
         options:
           - code_quality
           - performance
-          - error_handling
           - documentation
-          - security
           - all
         default: 'code_quality'
       custom_command:
-        description: 'أمر مخصص للتحسين'
-        required: false
+        description: 'أمر مخصص لتنفيذه'
         type: string
 
 env:
   DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-  TARGET_TOKEN: ${{ github.event.inputs.target_token }}
+  INPUT_JSON: ${{ toJSON(github.event.inputs) }}
 
 jobs:
   check-and-analyze:
@@ -45,110 +41,90 @@ jobs:
       project_type: ${{ steps.detect_project.outputs.project_type }}
     
     steps:
-      - name: 🔍 فحص إمكانية الوصول
+      - name: 🔐 فحص صلاحيات الوصول
         id: check_access
-        env:
-          TARGET_TOKEN: ${{ github.event.inputs.target_token }}
         run: |
-          echo "🔍 فحص الوصول إلى المستودع الهدف..."
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: token $TARGET_TOKEN" \
-            "https://api.github.com/repos/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}")
-          
-          if [ "$RESPONSE" = "200" ]; then
-            echo "✅ يمكن الوصول إلى المستودع الهدف"
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token ${{ github.event.inputs.target_token }}" "https://api.github.com/repos/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}")
+          if [ "$RESPONSE" == "200" ]; then
+            echo "✅ الوصول ممكن"
             echo "can_access=true" >> $GITHUB_OUTPUT
           else
-            echo "❌ لا يمكن الوصول إلى المستودع (HTTP: $RESPONSE)"
+            echo "❌ فشل الوصول، رمز الحالة: $RESPONSE"
             echo "can_access=false" >> $GITHUB_OUTPUT
+            # exit 1 # This would stop the workflow
           fi
-      
-      - name: 📱 كشف نوع المشروع
+
+      - name: 🔍 تحليل المشروع (إذا كان الوصول ممكناً)
         id: detect_project
         if: steps.check_access.outputs.can_access == 'true'
-        env:
-          TARGET_TOKEN: ${{ github.event.inputs.target_token }}
         run: |
-          echo "📱 جاري كشف نوع المشروع..."
-          
-          # Clone مؤقت للكشف
-          REPO_URL="https://x-access-token:$TARGET_TOKEN@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git"
+          echo "📥 جلب المستودع للتحليل..."
+          REPO_URL="https://x-access-token:${{ github.event.inputs.target_token }}@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git"
           git clone --depth 1 "$REPO_URL" temp-repo
           cd temp-repo
           
           if [ -f "build.gradle" ] || [ -f "app/build.gradle" ]; then
-            echo "🎯 نوع المشروع: Android"
-            echo "project_type=android" >> $GITHUB_OUTPUT
+            echo "project_type=Android" >> $GITHUB_OUTPUT
+            echo "🐘 المشروع من نوع Android"
           elif [ -f "package.json" ]; then
-            echo "🟢 نوع المشروع: Node.js"
-            echo "project_type=nodejs" >> $GITHUB_OUTPUT
+            echo "project_type=NodeJS" >> $GITHUB_OUTPUT
+            echo "📦 المشروع من نوع NodeJS"
           elif [ -f "pom.xml" ]; then
-            echo "☕ نوع المشروع: Java"
-            echo "project_type=java" >> $GITHUB_OUTPUT
+            echo "project_type=Java" >> $GITHUB_OUTPUT
+            echo "☕️ المشروع من نوع Java"
           elif [ -f "requirements.txt" ]; then
-            echo "🐍 نوع المشروع: Python"
-            echo "project_type=python" >> $GITHUB_OUTPUT
+            echo "project_type=Python" >> $GITHUB_OUTPUT
+            echo "🐍 المشروع من نوع Python"
           else
-            echo "📁 نوع المشروع: عام"
-            echo "project_type=general" >> $GITHUB_OUTPUT
+            echo "project_type=General" >> $GITHUB_OUTPUT
+            echo "❓ نوع المشروع عام"
           fi
-          
           cd ..
           rm -rf temp-repo
 
   optimize-repository:
-    runs-on: ubuntu-latest
     needs: check-and-analyze
     if: needs.check-and-analyze.outputs.can_access == 'true'
-    timeout-minutes: 25
-    
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
-      - name: 🎯 بدء عملية التحسين
+      - name: 🚀 بدء التحسين
         run: |
-          echo "🚀 Genesis Forge Pro - بدء العملية"
-          echo "===================================="
-          echo "👨‍💻 المهندس: ${{ github.repository }}"
-          echo "🎯 الهدف: ${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}"
+          echo "🚀 Genesis Forge Fix - بدء التحسين"
+          echo "🎯 المستودع: ${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}"
           echo "🔧 النوع: ${{ github.event.inputs.improvement_type }}"
-          echo "⚡ الأمر: ${{ github.event.inputs.custom_command || 'بدون أمر مخصص' }}"
-          echo "📱 نوع المشروع: ${{ needs.check-and-analyze.outputs.project_type }}"
-          echo ""
-      
+          echo "🧠 نوع المشروع المحدد: ${{ needs.check-and-analyze.outputs.project_type }}"
+          echo "🔑 مفتاح Deepseek: ${{ env.DEEPSEEK_API_KEY != '' }}"
+
       - name: 📥 جلب المستودع الهدف
         env:
           TARGET_TOKEN: ${{ github.event.inputs.target_token }}
         run: |
-          echo "📥 جلب المستودع الهدف..."
-          
           REPO_URL="https://x-access-token:$TARGET_TOKEN@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git"
-          
           git clone "$REPO_URL" target-repo
           cd target-repo
-          
-          # تكوين Git
           git config user.email "genesis-forge@ai.com"
-          git config user.name "Genesis Forge AI"
-          
-          echo "✅ تم جلب المستودع بنجاح"
-          echo "📁 حجم المشروع: $(du -sh . | cut -f1)"
-      
-      - name: 🤖 استشارة DeepSeek AI (اختياري)
-        if: env.DEEPSEEK_API_KEY != ''
+          git config user.name "Genesis Forge [AI]"
+          echo "🌳 تم جلب وتكوين المستودع"
+
+      - name: 🧠 تحليل الكود بواسطة الذكاء الاصطناعي
         run: |
-          echo "🤖 استشارة DeepSeek AI للتحسينات..."
           cd target-repo
-          
-          # تحليل المشروع
-          PROJECT_INFO=$(find . -name "*.java" -o -name "*.kt" -o -name "*.xml" -o -name "*.gradle" | head -20)
-          FILE_COUNT=$(find . -type f | wc -l)
-          
-          # طلب تحسينات من AI
-          cat > ai_consultation.md << 'AI_EOF'
-# 🧠 استشارة AI للتحسينات
+          if [ -n "$DEEPSEEK_API_KEY" ]; then
+            echo "🧠 استخدام Deepseek AI للتحليل..."
+            # (Logic for AI analysis would go here)
+            FILE_COUNT=$(find . -name "*.java" -o -name "*.kt" | wc -l)
+            echo "📊 عدد ملفات Java/Kotlin هو: $FILE_COUNT"
+          else
+            echo "⚠️ مفتاح Deepseek API غير موجود، سيتم تخطي التحليل بالذكاء الاصطناعي."
+          fi
 
-## 📋 معلومات المشروع
-- **النوع**: ${{ needs.check-and-analyze.outputs.project_type }}
-- **عدد الملفات**: $FILE_COUNT
-- **نوع التحسين**: ${{ github.event.inputs.improvement_type }}
-
-## 🔍 الملفات الرئيسية
+      - name: 🛠️ تطبيق التحسينات
+        run: |
+          cd target-repo
+          # This is a placeholder for the actual improvement logic
+          echo "## 📅 التحسينات المطبقة" >> IMPROVEMENTS.md
+          echo "" >> IMPROVEMENTS.md
+          echo "- **النوع:** ${{ github.event.inputs.improvement_type }}" >> IMPROVEMENTS.md
+          echo "- **الوقت:** $(date)" >> IMPROVEMENTS.md
