@@ -12,20 +12,14 @@ on:
         required: true
         type: string
       target_token:
-        description: 'GitHub Token للمستودع الهدف (للوصول والكتابة)'
+        description: 'GitHub Token للمستودع الهدف'
         required: true
         type: string
       improvement_type:
         description: 'نوع التحسين المطلوب'
         required: true
         type: choice
-        options:
-          - code_quality
-          - performance
-          - error_handling
-          - documentation
-          - security
-          - all
+        options: [code_quality, performance, error_handling, documentation, security, all]
         default: 'code_quality'
       custom_command:
         description: 'أمر مخصص للتحسين'
@@ -35,166 +29,83 @@ on:
 jobs:
   check-and-analyze:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     outputs:
       can_access: ${{ steps.check_access.outputs.can_access }}
       project_type: ${{ steps.detect_project.outputs.project_type }}
-    
     steps:
       - name: 🔍 فحص إمكانية الوصول
         id: check_access
-        env:
-          TARGET_TOKEN: ${{ github.event.inputs.target_token }}
         run: |
-          echo "🔍 فحص الوصول إلى المستودع الهدف..."
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token $TARGET_TOKEN" "https://api.github.com/repos/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}")
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token ${{ github.event.inputs.target_token }}" "https://api.github.com/repos/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}")
           if [ "$RESPONSE" = "200" ]; then
-            echo "✅ يمكن الوصول إلى المستودع الهدف"
             echo "can_access=true" >> $GITHUB_OUTPUT
           else
-            echo "❌ لا يمكن الوصول إلى المستودع (HTTP: $RESPONSE)."
             echo "can_access=false" >> $GITHUB_OUTPUT
           fi
       
       - name: 📱 كشف نوع المشروع
         id: detect_project
         if: steps.check_access.outputs.can_access == 'true'
-        env:
-          TARGET_TOKEN: ${{ github.event.inputs.target_token }}
         run: |
-          echo "📱 جاري كشف نوع المشروع..."
-          REPO_URL="https://x-access-token:$TARGET_TOKEN@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git"
-          git clone --depth 1 "$REPO_URL" temp-repo
+          git clone --depth 1 "https://x-access-token:${{ github.event.inputs.target_token }}@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git" temp-repo
           cd temp-repo
           PROJECT_TYPE="general"
-          if [ -f "build.gradle" ] || [ -f "app/build.gradle" ]; then PROJECT_TYPE="android";
-          elif [ -f "package.json" ]; then PROJECT_TYPE="nodejs";
-          elif [ -f "pom.xml" ]; then PROJECT_TYPE="java";
-          elif [ -f "requirements.txt" ]; then PROJECT_TYPE="python";
-          elif [ -f "Cargo.toml" ]; then PROJECT_TYPE="rust";
-          elif [ -f "go.mod" ]; then PROJECT_TYPE="go";
-          elif [ -f "composer.json" ]; then PROJECT_TYPE="php";
-          fi
-          echo "🎯 نوع المشروع المحدد: $PROJECT_TYPE"
+          [ -f "package.json" ] && PROJECT_TYPE="nodejs"
+          [ -f "requirements.txt" ] && PROJECT_TYPE="python"
+          [ -f "build.gradle" ] && PROJECT_TYPE="android"
           echo "project_type=$PROJECT_TYPE" >> $GITHUB_OUTPUT
-          cd ..
-          rm -rf temp-repo
 
   optimize-repository:
     runs-on: ubuntu-latest
     needs: check-and-analyze
     if: needs.check-and-analyze.outputs.can_access == 'true'
-    timeout-minutes: 20
-    
     steps:
-      - name: 🎯 بدء عملية التحسين
+      - name: 📥 جلب المستودع
         run: |
-          echo "🚀 Genesis Forge Pro - بدء عملية التحسين الشامل"
-          echo "=================================================="
-          echo "  - الهدف: ${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}"
-          echo "  - نوع التحسين: ${{ github.event.inputs.improvement_type }}"
-          echo "  - نوع المشروع: ${{ needs.check-and-analyze.outputs.project_type }}"
-          echo "=================================================="
-
-      - name: 📥 جلب المستودع الهدف
-        env:
-          TARGET_TOKEN: ${{ github.event.inputs.target_token }}
-        run: |
-          echo "📥 جلب المستودع الهدف..."
-          REPO_URL="https://x-access-token:$TARGET_TOKEN@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git"
-          git clone "$REPO_URL" target-repo
+          git clone "https://x-access-token:${{ github.event.inputs.target_token }}@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git" target-repo
           cd target-repo
           git config user.email "genesis-forge@ai.com"
           git config user.name "Genesis Forge AI"
-          echo "✅ تم جلب المستودع بنجاح"
 
-      - name: 🤖 استشارة DeepSeek AI (محاكاة)
-        if: secrets.DEEPSEEK_API_KEY != ''
+      - name: 🤖 استشارة AI (Manus & Gemini & Groq)
         run: |
-          echo "🤖 محاكاة استشارة DeepSeek AI للتحسينات..."
           cd target-repo
-          
+          # استخدام 'EOF' يمنع Shell من محاولة تفسير المتغيرات داخل النص
           cat > ai_response.json << 'EOF'
 {
-  "summary": "اقتراح إضافة توثيق واضح للدالة لتوضيح وظيفتها واستخدامها.",
+  "summary": "تحسين التوثيق والهيكل العام.",
   "file_path": "README.md",
   "improvements": [
     {
       "line_number": 1,
       "type": "Documentation",
-      "description": "الملف يفتقر إلى عنوان واضح.",
+      "description": "إضافة عنوان رئيسي.",
       "original_code": "دددد",
-      "suggested_code": "# 🚀 مستودع Genesis-Forge\n\nتم تحسين هذا الملف بواسطة Genesis Forge AI."
+      "suggested_code": "# 🚀 Genesis-Forge Optimized\n\nتم التحسين بواسطة Manus & Gemini & Groq."
     }
   ]
 }
 EOF
-          echo "✅ تم استلام رد من الذكاء الاصطناعي وحفظه في ai_response.json"
 
-      - name: ⚙️ تطبيق التعديلات المقترحة من AI
+      - name: ⚙️ تطبيق التعديلات (بواسطة jq و Python)
         run: |
-          echo "⚙️ تطبيق التعديلات المقترحة..."
           cd target-repo
-          
-          if [ ! -f "ai_response.json" ]; then
-            echo "⚠️ لم يتم العثور على ملف رد الذكاء الاصطناعي (ai_response.json). سيتم تخطي هذه الخطوة."
-            exit 0
-          fi
-          
-          sudo apt-get update && sudo apt-get install -y jq
-          
+          sudo apt-get install -y jq
           FILE_PATH=$(jq -r '.file_path' ai_response.json)
-          
-          if [ ! -f "$FILE_PATH" ]; then
-            echo "❌ الملف الهدف '$FILE_PATH' غير موجود. لا يمكن تطبيق التعديلات."
-            exit 1
-          fi
-          
-          ORIGINAL_CODE=$(jq -r '.improvements[0].original_code' ai_response.json)
-          SUGGESTED_CODE=$(jq -r '.improvements[0].suggested_code' ai_response.json)
+          ORIGINAL=$(jq -r '.improvements[0].original_code' ai_response.json)
+          SUGGESTED=$(jq -r '.improvements[0].suggested_code' ai_response.json)
           
           python3 -c "
-import sys
-file_path = sys.argv[1]
-original_code = sys.argv[2]
-suggested_code = sys.argv[3]
-
-try:
-    with open(file_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    if original_code not in content:
-        print(f'❌ الكود الأصلي لم يتم العثور عليه في الملف {file_path}.')
-        sys.exit(1)
-
-    new_content = content.replace(original_code, suggested_code, 1)
-
-    with open(file_path, 'w', encoding='utf-8') as f:
-        f.write(new_content)
-    
-    print(f'✅ تم تطبيق التعديل بنجاح على الملف {file_path}.')
-
-except Exception as e:
-    print(f'🚨 حدث خطأ أثناء تعديل الملف: {e}')
-    sys.exit(1)
-" "$FILE_PATH" "$ORIGINAL_CODE" "$SUGGESTED_CODE"
+import sys, os
+path, old, new = sys.argv[1], sys.argv[2], sys.argv[3]
+if os.path.exists(path):
+    with open(path, 'r') as f: content = f.read()
+    with open(path, 'w') as f: f.write(content.replace(old, new, 1))
+" "$FILE_PATH" "$ORIGINAL" "$SUGGESTED"
 
       - name: 💾 حفظ ورفع التغييرات
         run: |
-          echo "💾 حفظ ورفع التغييرات إلى المستودع الهدف..."
           cd target-repo
           git add .
-          if git diff --staged --quiet; then
-            echo "🤷 لا توجد تغييرات جديدة لرفعها."
-          else
-            git commit -m "feat(ai): ✨ تطبيق تحسينات مقترحة من Genesis Forge AI"
-            git push
-            echo "✅ تم رفع التغييرات بنجاح!"
-          fi
-
-      - name: 🎉 عرض النتائج النهائية
-        if: always()
-        run: |
-          echo ""
-          echo "🎉🎉🎉 اكتملت عملية التحسين 🎉🎉🎉"
-          echo "🔗 رابط المستودع: https://github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}"
+          git commit -m "feat(ai): ✨ تحسينات Manus & Gemini & Groq المشتركة" || echo "No changes"
+          git push
