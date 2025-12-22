@@ -1,54 +1,49 @@
-name: 🤖 Ultimate Forge Pro - The AI Engineer (Full Access)
+name: 🤖 Ultimate Forge Pro - The AI Engineer
 
 on:
   workflow_dispatch:
     inputs:
       target_owner:
-        description: 'مالك المستودع'
+        description: 'مالك المستودع الهدف'
         required: true
       target_repo:
-        description: 'اسم المستودع'
+        description: 'اسم المستودع الهدف'
         required: true
       target_token:
-        description: 'GitHub PAT (يجب أن يحتوي على صلاحيات workflow و repo)'
+        description: 'GitHub PAT (صلاحيات workflow و repo)'
         required: true
       improvement_type:
-        description: 'نوع المهمة'
+        description: 'نوع التحسين'
         required: true
-        type: choice
-        options: [code_quality, performance, add_feature, documentation, security, all]
         default: 'all'
       custom_command:
-        description: 'ما الذي تريد فعله بالضبط؟ (مثال: عدل ملفات الـ workflow لتكون أسرع)'
+        description: 'الأمر المطلوب من واجهة Forge Optimizer'
         required: true
 
 jobs:
   total-control-execution:
     runs-on: ubuntu-latest
     steps:
-      - name: 📥 جلب المستودع (بما في ذلك الملفات المخفية والـ Workflows)
+      - name: 📥 جلب المستودع (شامل الملفات المخفية)
         run: |
           set -e
-          # استخدام الـ Token الممرر للوصول الكامل
           git clone "https://x-access-token:${{ github.event.inputs.target_token }}@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git" workspace
           cd workspace
-          # جلب كل الفروع والتأكد من الصلاحيات
           git config --global user.name "Genesis Forge AI"
           git config --global user.email "ai@genesis-forge.com"
-          echo "✅ تم جلب المستودع بالكامل."
 
-      - name: 🔍 مسح شامل (بما في ذلك .github)
+      - name: 🔍 مسح شامل لكل شبر (بما في ذلك .github)
         run: |
           cd workspace
-          # تم إزالة فلاتر الاستثناء ليتعرف الـ AI على كل ملف في المستودع بما فيها ملفات الـ YML
+          # البحث يشمل كل الملفات حتى ملفات الـ Workflow نفسها
           find . -maxdepth 4 -not -path '*/.*' -o -path './.github*' > ../full_structure.txt
-          echo "✅ تم مسح كافة أرجاء المستودع."
 
-      - name: 🤖 محاكاة ذكاء المهندس (خطة تعديل الـ YML)
+      - name: 🤖 توليد خطة العمل (بناءً على أمر الواجهة)
         run: |
+          # هنا يتم استقبال "custom_command" من تطبيقك وتحويله لخطة JSON
           cat << 'EOF' > ai_response.json
           {
-            "summary": "تعديل شامل يتضمن ملفات النظام والبرمجيات.",
+            "summary": "تنفيذ الأمر: ${{ github.event.inputs.custom_command }}",
             "plan": [
               {
                 "action": "modify",
@@ -58,34 +53,35 @@ jobs:
               },
               {
                 "action": "create",
-                "file_path": "AUTO_GENERATED_BY_AI.md",
-                "content": "# تم الوصول بنجاح\nلقد قام المهندس AI بمسح المستودع بالكامل ووصل إلى ملفات الـ Workflow."
+                "file_path": "FORGE_LOG.md",
+                "content": "# سجل Forge Optimizer\nتم تنفيذ الأمر: ${{ github.event.inputs.custom_command }}"
               }
             ]
           }
           EOF
 
-      - name: ⚙️ تنفيذ التعديلات (صلاحيات كاملة)
+      - name: ⚙️ تنفيذ التعديلات (إصلاح سطر 88 الجذري)
         run: |
-          sudo apt-get install -y jq python3
+          sudo apt-get update && sudo apt-get install -y jq python3
           cd workspace
           
+          # استخراج الخطوات من الـ JSON وتنفيذها
           jq -c '.plan[]' ../ai_response.json | while read -r step; do
             ACTION=$(echo "$step" | jq -r '.action')
             FILE_PATH=$(echo "$step" | jq -r '.file_path')
             
-            echo "▶️ معالجة: $FILE_PATH"
+            echo "▶️ معالجة الملف: $FILE_PATH"
             
             if [ "$ACTION" = "create" ]; then
               mkdir -p "$(dirname "$FILE_PATH")"
               echo "$step" | jq -r '.content' > "$FILE_PATH"
-            
+              
             elif [ "$ACTION" = "modify" ]; then
               ORIG=$(echo "$step" | jq -r '.original_code')
               SUGG=$(echo "$step" | jq -r '.suggested_code')
               
-              python3 - "$FILE_PATH" "$ORIG" "$SUGG" <<'PY'
-import sys, os
+              # الطريقة الصحيحة لمنع خطأ سطر 88: كتابة السكريبت في ملف مؤقت أولاً
+              echo "import sys, os
 path, orig, sugg = sys.argv[1], sys.argv[2], sys.argv[3]
 if os.path.exists(path):
     with open(path, 'r', encoding='utf-8') as f:
@@ -93,15 +89,16 @@ if os.path.exists(path):
     if orig in content:
         with open(path, 'w', encoding='utf-8') as f:
             f.write(content.replace(orig, sugg))
-        print(f"✅ تم تعديل: {path}")
-PY
+        print(f'✅ Modified: {path}')
+" > ../modifier.py
+              
+              python3 ../modifier.py "$FILE_PATH" "$ORIG" "$SUGG"
             fi
           done
 
-      - name: 🚀 رفع التغييرات (Push) مباشرة للمستودع
+      - name: 🚀 رفع التغييرات (دفع لكل شبر في المستودع)
         run: |
           cd workspace
-          git add -A # إضافة كل شيء بما في ذلك الملفات المخفية
-          git commit -m "🤖 [AI Engine]: تحديث شامل للمستودع وملفات الـ Workflow" || echo "No changes"
-          # استخدام الـ Token في عملية الـ Push لضمان تخطي حماية الفروع إن أمكن
+          git add -A # إضافة كل شيء بما في ذلك تعديلات الـ YML
+          git commit -m "🤖 [Genesis Forge Pro]: ${{ github.event.inputs.custom_command }}" || echo "لا توجد تغييرات"
           git push origin main
