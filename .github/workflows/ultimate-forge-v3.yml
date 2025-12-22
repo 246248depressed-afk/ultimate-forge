@@ -114,9 +114,8 @@ jobs:
           echo "🤖 محاكاة استشارة DeepSeek AI للتحسينات..."
           cd target-repo
           
-          # في التطبيق الحقيقي، هذا الجزء سيقوم باستدعاء API الخاص بـ DeepSeek
-          # الآن، سنقوم بإنشاء ملف استجابة وهمي بناءً على المثال الذي أعطيتني إياه
-          cat > ai_response.json << EOF
+          # ⬇️⬇️ تم تصحيح الخطأ هنا باستخدام 'EOF' لعزل كتلة JSON كنص خام ⬇️⬇️
+          cat > ai_response.json << 'EOF'
 {
   "summary": "اقتراح إضافة توثيق واضح للدالة لتوضيح وظيفتها واستخدامها.",
   "file_path": "README.md",
@@ -138,29 +137,23 @@ EOF
           echo "⚙️ تطبيق التعديلات المقترحة..."
           cd target-repo
           
-          # التحقق من وجود ملف الرد
           if [ ! -f "ai_response.json" ]; then
             echo "⚠️ لم يتم العثور على ملف رد الذكاء الاصطناعي (ai_response.json). سيتم تخطي هذه الخطوة."
             exit 0
           fi
           
-          # تثبيت jq لمعالجة JSON
           sudo apt-get update && sudo apt-get install -y jq
           
-          # قراءة مسار الملف من JSON
           FILE_PATH=$(jq -r '.file_path' ai_response.json)
           
-          # التحقق من وجود الملف الهدف
           if [ ! -f "$FILE_PATH" ]; then
             echo "❌ الملف الهدف '$FILE_PATH' غير موجود. لا يمكن تطبيق التعديلات."
             exit 1
           fi
           
-          # استخراج الكود الأصلي والمقترح
           ORIGINAL_CODE=$(jq -r '.improvements[0].original_code' ai_response.json)
           SUGGESTED_CODE=$(jq -r '.improvements[0].suggested_code' ai_response.json)
           
-          # استخدام Python لتنفيذ الاستبدال بشكل آمن
           python3 -c "
 import sys
 file_path = sys.argv[1]
@@ -175,7 +168,7 @@ try:
         print(f'❌ الكود الأصلي لم يتم العثور عليه في الملف {file_path}.')
         sys.exit(1)
 
-    new_content = content.replace(original_code, suggested_code, 1) # استبدال مرة واحدة فقط
+    new_content = content.replace(original_code, suggested_code, 1)
 
     with open(file_path, 'w', encoding='utf-8') as f:
         f.write(new_content)
