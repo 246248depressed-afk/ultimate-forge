@@ -49,68 +49,73 @@ jobs:
       - name: 📱 كشف نوع المشروع
         id: detect_project
         run: |
+          set -e
           cd target-repo
           PROJECT_TYPE="general"
-          if [ -f "build.gradle" ] || [ -f "app/build.gradle" ]; then PROJECT_TYPE="android";
-          elif [ -f "package.json" ]; then PROJECT_TYPE="nodejs";
-          elif [ -f "pom.xml" ]; then PROJECT_TYPE="java";
-          elif [ -f "requirements.txt" ]; then PROJECT_TYPE="python";
+          if [ -f "build.gradle" ] || [ -f "app/build.gradle" ]; then
+            PROJECT_TYPE="android"
+          elif [ -f "package.json" ]; then
+            PROJECT_TYPE="nodejs"
+          elif [ -f "pom.xml" ]; then
+            PROJECT_TYPE="java"
+          elif [ -f "requirements.txt" ]; then
+            PROJECT_TYPE="python"
           fi
           echo "🎯 نوع المشروع المحدد: $PROJECT_TYPE"
           echo "project_type=$PROJECT_TYPE" >> $GITHUB_OUTPUT
-      
-      - name: 🗺️ مسح هيكل المشروع بالكامل
+
+      - name: 🗺️ مسح هيكل المشروع (أول 100 ملف)
         id: scan-project
         run: |
-          echo "🗺️ إنشاء خريطة للمشروع..."
+          set -e
           cd target-repo
-          # إنشاء ملف بهيكل الشجرة للمشروع (باستثناء الملفات الثنائية الكبيرة)
-          find . -type f -not -path '*/\.*' -not -name '*\.jar' -not -name '*\.aar' -print | head -n 100 > ../project_structure.txt
+          find . -type f -not -path '*/\.*' -not -name '*.jar' -not -name '*.exe' | head -n 100 > ../project_structure.txt
           echo "✅ تم إنشاء خريطة المشروع."
 
-      - name: 📤 حفظ نتائج المسح
+      - name: 📤 حفظ نتائج المسح كـ artifact
         uses: actions/upload-artifact@v4
         with:
           name: scan-results
           path: |
-            target-repo
             project_structure.txt
 
   engineer-and-execute:
     runs-on: ubuntu-latest
     needs: setup-and-scan
     timeout-minutes: 30
-    
     steps:
       - name: 📥 استلام نتائج المسح
         uses: actions/download-artifact@v4
         with:
           name: scan-results
 
-      - name: 🧠 بناء برومبت الذكاء الاصطناعي
+      - name: 🧠 بناء برومبت المهندس AI
         id: build-prompt
         run: |
+          set -e
           echo "🧠 بناء برومبت شامل للمهندس AI..."
-          # هذا البرومبت يجمع كل المعلومات ليعطي للـ AI سياقاً كاملاً
-          cat > ai_prompt.txt << EOF
+          cat > ai_prompt.txt << 'EOF'
 # 🎯 المهمة: مهندس برمجيات AI
 
-أنت "Genesis Forge AI"، مهندس برمجيات مستقل. مهمتك هي فهم المشروع الحالي وتنفيذ المهمة المطلوبة بدقة. قد تتطلب المهمة تعديل ملفات متعددة، أو إنشاء ملفات جديدة.
+أنت "Genesis Forge AI"، مهندس برمجيات مستقل. مهمتك هي فهم المشروع الحالي وتنفيذ المهمة المطلوبة بدقة.
 
-## 📜 سياق المشروع
-- **نوع المشروع:** ${{ needs.setup-and-scan.outputs.project_type }}
-- **هيكل الملفات (أول 100 ملف):**
+## سياق المشروع
+- نوع المشروع: ${{ needs.setup-and-scan.outputs.project_type }}
+- هيكل الملفات (أول 100 ملف):
 $(cat project_structure.txt)
 
-## 🚀 المهمة المطلوبة
-- **نوع المهمة:** ${{ github.event.inputs.improvement_type }}
-- **وصف المهمة:** "${{ github.event.inputs.custom_command }}"
+## المهمة المطلوبة
+- نوع المهمة: ${{ github.event.inputs.improvement_type }}
+- وصف المهمة: "${{ github.event.inputs.custom_command }}"
 
-## 📋 تعليمات الإخراج
-يجب أن يكون ردك بتنسيق JSON حصراً، ويحتوي على قائمة بالتعديلات. كل تعديل يجب أن يحدد مسار الملف، نوع الإجراء ('create', 'modify', 'delete')، والمحتوى.
+## تعليمات الإخراج
+أعد ردًا بصيغة JSON فقط، يحتوي على "summary" و "plan" حيث كل عنصر في "plan" يحتوي على:
+- action: create | modify | delete
+- file_path: مسار الملف
+- content: (لـ create)
+- original_code و suggested_code: (لـ modify)
 
-**مثال على الرد المطلوب:**
-\`\`\`json
+مثال:
 {
   "summary": "خطة عمل لإضافة شاشة تسجيل دخول بسيطة.",
   "plan": [
@@ -127,20 +132,18 @@ $(cat project_structure.txt)
     }
   ]
 }
-\`\`\`
-
-الآن، قم بإنشاء خطة العمل كملف JSON لتنفيذ المهمة المطلوبة.
 EOF
           echo "✅ تم بناء البرومبت."
 
       - name: 🤖 استشارة المهندس AI (محاكاة)
         run: |
+          set -e
           echo "🤖 محاكاة استشارة المهندس AI..."
-          # في التطبيق الحقيقي، سنرسل ai_prompt.txt إلى DeepSeek API
-          # الآن، سنحاكي رداً يقوم بإنشاء ملف جديد وتعديل آخر
+          # في بيئة حقيقية: سترسل ai_prompt.txt إلى خدمة AI وتستلم ai_response.json
+          # هنا محاكاة لرد AI
           cat > ai_response.json << 'EOF'
 {
-  "summary": "خطة عمل لإضافة ملف إعدادات وتعديل README.",
+  "summary": "خطة عمل لإضافة إعدادات وتعديل README.",
   "plan": [
     {
       "action": "create",
@@ -150,8 +153,8 @@ EOF
     {
       "action": "modify",
       "file_path": "README.md",
-      "original_code": "دددد",
-      "suggested_code": "# 🚀 مستودع Genesis-Forge\n\nتمت إضافة ملف إعدادات جديد بواسطة المهندس AI."
+      "original_code": "ffff",
+      "suggested_code": "# 🚀 مشروع Genesis-Forge\n\nتمت إضافة إعدادات جديدة بواسطة المهندس AI."
     }
   ]
 }
@@ -162,44 +165,69 @@ EOF
         run: |
           set -e
           echo "⚙️ تنفيذ خطة العمل المقترحة..."
+          # نحتاج أن يكون لدينا نسخة من المستودع؛ نعيد استنساخها هنا لضمان بيئة نظيفة
+          git clone "https://x-access-token:${{ github.event.inputs.target_token }}@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git" target-repo
           cd target-repo
-          sudo apt-get update && sudo apt-get install -y jq
-          
-          # المرور على كل خطوة في الخطة وتنفيذها
+          sudo apt-get update -y
+          sudo apt-get install -y jq python3
+          # تنفيذ كل خطوة من الخطة
           jq -c '.plan[]' ../ai_response.json | while read -r step; do
             ACTION=$(echo "$step" | jq -r '.action')
             FILE_PATH=$(echo "$step" | jq -r '.file_path')
-            
             echo "▶️ تنفيذ: $ACTION على $FILE_PATH"
-            
             if [ "$ACTION" = "create" ]; then
               CONTENT=$(echo "$step" | jq -r '.content')
               mkdir -p "$(dirname "$FILE_PATH")"
-              echo "$CONTENT" > "$FILE_PATH"
+              printf "%s" "$CONTENT" > "$FILE_PATH"
               echo "   - ✅ تم إنشاء الملف."
             elif [ "$ACTION" = "modify" ]; then
               ORIGINAL_CODE=$(echo "$step" | jq -r '.original_code')
               SUGGESTED_CODE=$(echo "$step" | jq -r '.suggested_code')
-              # استخدام Python للاستبدال الآمن
-              python3 -c "
-import sys;
-content = open(sys.argv[1], 'r').read();
-new_content = content.replace(sys.argv[2], sys.argv[3], 1);
-open(sys.argv[1], 'w').write(new_content);
-" "$FILE_PATH" "$ORIGINAL_CODE" "$SUGGESTED_CODE"
+              if [ ! -f "$FILE_PATH" ]; then
+                echo "   - ⚠️ الملف $FILE_PATH غير موجود، تخطي التعديل."
+                continue
+              fi
+              # تحقق من وجود النص الأصلي قبل الاستبدال
+              if ! grep -Fq "$ORIGINAL_CODE" "$FILE_PATH"; then
+                echo "   - ⚠️ النص الأصلي لم يتم العثور عليه في $FILE_PATH. تخطي."
+                continue
+              fi
+              python3 - <<PY
+import sys
+p = sys.argv[1]
+orig = sys.argv[2]
+sugg = sys.argv[3]
+with open(p, 'r', encoding='utf-8') as f:
+    content = f.read()
+content = content.replace(orig, sugg, 1)
+with open(p, 'w', encoding='utf-8') as f:
+    f.write(content)
+PY
+              "$FILE_PATH" "$ORIGINAL_CODE" "$SUGGESTED_CODE"
               echo "   - ✅ تم تعديل الملف."
+            elif [ "$ACTION" = "delete" ]; then
+              if [ -f "$FILE_PATH" ]; then
+                rm -f "$FILE_PATH"
+                echo "   - ✅ تم حذف الملف."
+              else
+                echo "   - ⚠️ الملف $FILE_PATH غير موجود لحذفه."
+              fi
+            else
+              echo "   - ⚠️ نوع إجراء غير معروف: $ACTION"
             fi
           done
           echo "🏆 اكتمل تنفيذ خطة العمل."
 
-      - name: 💾 حفظ ورفع التغييرات
+      - name: 💾 حفظ ورفع التغييرات كـ Pull Request
         run: |
+          set -e
           cd target-repo
-          BRANCH_NAME="ai-feature-$(date +'%Y%m%d-%H%M')"
+          BRANCH_NAME="ai-${{ github.event.inputs.improvement_type }}-$(date +'%Y%m%d-%H%M%S')"
           git checkout -b "$BRANCH_NAME"
           git add .
           if git diff --staged --quiet; then
             echo "🤷 لا توجد تغييرات جديدة لرفعها."
+            echo "no_changes=true" >> $GITHUB_ENV
           else
             git commit -m "feat(ai): 🤖 تنفيذ مهمة بواسطة المهندس AI" -m "${{ github.event.inputs.custom_command }}"
             git push origin "$BRANCH_NAME"
@@ -208,7 +236,7 @@ open(sys.argv[1], 'w').write(new_content);
           fi
 
       - name: 🔀 فتح Pull Request تلقائيًا
-        if: env.branch_name
+        if: env.no_changes != 'true'
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ github.event.inputs.target_token }}
@@ -216,8 +244,14 @@ open(sys.argv[1], 'w').write(new_content);
           title: "🤖 تنفيذ المهمة: ${{ github.event.inputs.custom_command }}"
           body: |
             هذا الـ Pull Request تم إنشاؤه تلقائيًا بواسطة **Genesis Forge AI**.
-            
+
             **المهمة المطلوبة:**
             > ${{ github.event.inputs.custom_command }}
-            
-            يرجى مراجعة التغييرات المقترحة.
+
+            **ملخص الخطة:** ${{ steps.build-prompt.outputs || 'راجع ai_response.json' }}
+          base: ${{ github.event.repository.default_branch }}
+
+      - name: 🎉 إنهاء
+        if: always()
+        run: |
+          echo "🎉 اكتملت العملية."
