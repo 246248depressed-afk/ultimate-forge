@@ -1,114 +1,110 @@
+# اسم الـ workflow الذي سيظهر في واجهة GitHub Actions
 name: 🤖 Ultimate Forge Pro - The AI Engineer
 
+# القسم الذي يحدد متى يتم تشغيل هذا الـ workflow
 on:
+  # يسمح بالتشغيل اليدوي من واجهة GitHub أو عبر API
   workflow_dispatch:
+    # تعريف المدخلات التي سيتم طلبها عند التشغيل اليدوي
     inputs:
       target_owner:
-        description: 'مالك المستودع الهدف'
+        description: 'مالك المستودع الهدف (الذي سيتم تعديله)'
         required: true
       target_repo:
         description: 'اسم المستودع الهدف'
         required: true
       target_token:
-        description: 'GitHub PAT (صلاحيات workflow و repo)'
+        description: 'GitHub PAT للمستودع الهدف (مع صلاحيات repo و workflow)'
         required: true
-      improvement_type:
-        description: 'نوع التحسين'
-        required: true
-        default: 'all'
       custom_command:
-        description: 'الأمر المطلوب من واجهة Forge Optimizer'
+        description: 'الأمر المطلوب من واجهة Forge Optimizer (مثال: تحسين أداء الكود)'
         required: true
 
+# تعريف المهام (Jobs) التي سيتم تنفيذها
 jobs:
+  # اسم المهمة، يمكن أن يكون أي اسم
   total-control-execution:
+    # تحديد نوع الخادم الافتراضي الذي ستعمل عليه المهمة
     runs-on: ubuntu-latest
+    
+    # تعريف الخطوات (Steps) التي ستنفذها المهمة بالترتيب
     steps:
-      - name: 📥 جلب المستودع (شامل الملفات المخفية)
+      # الخطوة الأولى: جلب المستودع الهدف
+      - name: 📥 جلب المستودع الهدف
         run: |
+          # الخروج فورًا في حال حدوث أي خطأ
           set -e
+          # استنساخ المستودع الهدف باستخدام التوكن لتأكيد الصلاحية
           git clone "https://x-access-token:${{ github.event.inputs.target_token }}@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git" workspace
+          # الدخول إلى مجلد العمل
           cd workspace
+          # إعداد هوية Git لعملية الـ commit لاحقًا
           git config --global user.name "Genesis Forge AI"
           git config --global user.email "ai@genesis-forge.com"
-      - name: 🔍 مسح شامل لكل شبر (بما في ذلك .github)
+
+      # الخطوة الثانية: مسح بنية الملفات
+      - name: 🔍 مسح شامل لبنية الملفات
         run: |
           cd workspace
-          # البحث يشمل كل الملفات حتى ملفات الـ Workflow نفسها
-          find . -maxdepth 4 -not -path '*/.*' -o -path './.github*' > ../full_structure.txt
+          # إنشاء قائمة بكل الملفات والمجلدات لإعطاء سياق للذكاء الاصطناعي
+          find . -maxdepth 4 > ../full_structure.txt
+
+      # الخطوة الثالثة: توليد خطة عمل (محاكاة لاستدعاء ذكاء اصطناعي)
       - name: 🤖 توليد خطة العمل (بناءً على أمر الواجهة)
         run: |
-          # هنا يتم استقبال "custom_command" من تطبيقك وتحويله لخطة JSON
-          cat << 'EOF' > ai_response.json
+          # في التطبيق الحقيقي، هذه الخطوة ستستدعي API لنموذج لغوي
+          # حاليًا، هي تنشئ ملف JSON ثابت كمثال
+          cat << 'EOF' > ../ai_response.json
           {
             "summary": "تنفيذ الأمر: ${{ github.event.inputs.custom_command }}",
             "plan": [
               {
                 "action": "modify",
-                "file_path": ".github/workflows/repo-optimizer.yml",
-                "original_code": "timeout-minutes: 30",
-                "suggested_code": "timeout-minutes: 60"
+                "file_path": "README.md",
+                "original_code": "مرحباً",
+                "suggested_code": "مرحباً بك في المستودع المحسّن!"
               },
               {
                 "action": "create",
                 "file_path": "FORGE_LOG.md",
-                "content": "# سجل Forge Optimizer\nتم تنفيذ الأمر: ${{ github.event.inputs.custom_command }}"
+                "content": "# سجل Forge Optimizer\n\nتم تنفيذ الأمر التالي بنجاح:\n**${{ github.event.inputs.custom_command }}**"
               }
             ]
           }
           EOF
-      - name: ⚙️ تنفيذ التعديلات (إصلاح سطر 88 الجذري)
+
+      # الخطوة الرابعة: تنفيذ التعديلات المخطط لها
+      - name: ⚙️ تنفيذ التعديلات
+        # استخدام '|' للسماح بكتابة سكربت متعدد الأسطر
         run: |
+          echo "🔧 جاري إعداد البيئة..."
+          # تثبيت الأدوات اللازمة: jq لتحليل JSON و python3 لتشغيل السكربت
           sudo apt-get update && sudo apt-get install -y jq python3
-          cd workspace
           
-          # إنشاء ملف Python المؤقت بشكل صحيح
+          echo "🐍 إنشاء سكربت Python للتعديل الآمن..."
+          # استخدام 'cat' لإنشاء ملف سكربت بايثون مؤقت. هذا يحل كل مشاكل المسافات البادئة في YAML
           cat > ../modifier.py << 'EOF'
 import sys
 import os
 
-path = sys.argv[1]
-orig = sys.argv[2]
-sugg = sys.argv[3]
+def modify_file(file_path, original, suggested):
+    try:
+        if not os.path.exists(file_path):
+            print(f"❌ الملف غير موجود: {file_path}")
+            return False
 
-if os.path.exists(path):
-    with open(path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    if orig in content:
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content.replace(orig, sugg))
-        print(f'✅ Modified: {path}')
-    else:
-        print(f'⚠️ Original code not found in: {path}')
-else:
-    print(f'❌ File not found: {path}')
-EOF
-          
-          # استخراج الخطوات من الـ JSON وتنفيذها
-          jq -c '.plan[]' ../ai_response.json | while read -r step; do
-            ACTION=$(echo "$step" | jq -r '.action')
-            FILE_PATH=$(echo "$step" | jq -r '.file_path')
-            
-            echo "▶️ معالجة الملف: $FILE_PATH"
-            
-            if [ "$ACTION" = "create" ]; then
-              mkdir -p "$(dirname "$FILE_PATH")"
-              echo "$step" | jq -r '.content' > "$FILE_PATH"
-              echo "✅ Created: $FILE_PATH"
-              
-            elif [ "$ACTION" = "modify" ]; then
-              ORIG=$(echo "$step" | jq -r '.original_code')
-              SUGG=$(echo "$step" | jq -r '.suggested_code')
-              
-              # تشغيل سكريبت Python لتعديل الملف
-              python3 ../modifier.py "$FILE_PATH" "$ORIG" "$SUGG"
-            fi
-          done
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
 
-      - name: 🚀 رفع التغييرات (دفع لكل شبر في المستودع)
-        run: |
-          cd workspace
-          git add -A # إضافة كل شيء بما في ذلك تعديلات الـ YML
-          git commit -m "🤖 [Genesis Forge Pro]: ${{ github.event.inputs.custom_command }}" || echo "لا توجد تغييرات"
-          git push origin main
+        new_content = content.replace(original, suggested)
+        
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        print(f"✅ تم تعديل الملف: {file_path}")
+        return True
+            
+    except Exception as e:
+        print(f"❌ حدث خطأ استثنائي أثناء تعديل الملف {file_path}: {e}")
+        return False
+
+def create_file(file_path, content):
