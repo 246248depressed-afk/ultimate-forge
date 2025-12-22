@@ -31,13 +31,11 @@ jobs:
           cd workspace
           git config --global user.name "Genesis Forge AI"
           git config --global user.email "ai@genesis-forge.com"
-
       - name: 🔍 مسح شامل لكل شبر (بما في ذلك .github)
         run: |
           cd workspace
           # البحث يشمل كل الملفات حتى ملفات الـ Workflow نفسها
           find . -maxdepth 4 -not -path '*/.*' -o -path './.github*' > ../full_structure.txt
-
       - name: 🤖 توليد خطة العمل (بناءً على أمر الواجهة)
         run: |
           # هنا يتم استقبال "custom_command" من تطبيقك وتحويله لخطة JSON
@@ -59,11 +57,33 @@ jobs:
             ]
           }
           EOF
-
       - name: ⚙️ تنفيذ التعديلات (إصلاح سطر 88 الجذري)
         run: |
           sudo apt-get update && sudo apt-get install -y jq python3
           cd workspace
+          
+          # إنشاء ملف Python المؤقت بشكل صحيح
+          cat > ../modifier.py << 'EOF'
+import sys
+import os
+
+path = sys.argv[1]
+orig = sys.argv[2]
+sugg = sys.argv[3]
+
+if os.path.exists(path):
+    with open(path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    if orig in content:
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(content.replace(orig, sugg))
+        print(f'✅ Modified: {path}')
+    else:
+        print(f'⚠️ Original code not found in: {path}')
+else:
+    print(f'❌ File not found: {path}')
+EOF
           
           # استخراج الخطوات من الـ JSON وتنفيذها
           jq -c '.plan[]' ../ai_response.json | while read -r step; do
@@ -75,23 +95,13 @@ jobs:
             if [ "$ACTION" = "create" ]; then
               mkdir -p "$(dirname "$FILE_PATH")"
               echo "$step" | jq -r '.content' > "$FILE_PATH"
+              echo "✅ Created: $FILE_PATH"
               
             elif [ "$ACTION" = "modify" ]; then
               ORIG=$(echo "$step" | jq -r '.original_code')
               SUGG=$(echo "$step" | jq -r '.suggested_code')
               
-              # الطريقة الصحيحة لمنع خطأ سطر 88: كتابة السكريبت في ملف مؤقت أولاً
-              echo "import sys, os
-path, orig, sugg = sys.argv[1], sys.argv[2], sys.argv[3]
-if os.path.exists(path):
-    with open(path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    if orig in content:
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content.replace(orig, sugg))
-        print(f'✅ Modified: {path}')
-" > ../modifier.py
-              
+              # تشغيل سكريبت Python لتعديل الملف
               python3 ../modifier.py "$FILE_PATH" "$ORIG" "$SUGG"
             fi
           done
