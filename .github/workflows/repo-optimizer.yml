@@ -12,19 +12,13 @@ on:
         required: true
         type: string
       ai_prompt:
-        description: 'البرومبت القادم من منصتك'
+        description: 'البرومبت (مثال: أعد كتابة main.py ليطبع Hello AI)'
         required: true
         type: string
-      # =================================================================
-      # ✅ تم التعديل هنا ليطابق تطبيقك
-      # =================================================================
-      improvement_type:
-        description: 'نوع التحسين المطلوب'
+      file_to_change:
+        description: 'الملف الذي سيتم تعديله (مثال: main.py)'
         required: true
-        type: choice
-        options: [partial, full, refactor, security, performance, all, code_quality]
-        default: all
-      # =================================================================
+        default: 'main.py'
       base_branch:
         description: 'الفرع الأساسي'
         required: true
@@ -44,103 +38,26 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - name: 🔐 فحص الوصول الكامل
-        shell: bash
-        run: |
-          set -euo pipefail
-          code=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: token ${{ env.TARGET_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}")
-          if [ "$code" != "200" ]; then
-            echo "❌ لا يوجد وصول كامل إلى المستودع الهدف. رمز الحالة: $code"
-            exit 1
-          fi
-          echo "✅ وصول كامل مؤكد"
+      # الخطوة 1: استنساخ مستودع الـ Workflow نفسه للوصول إلى السكربت
+      - name: 📥 استنساخ مستودع الـ Workflow
+        uses: actions/checkout@v4
+        with:
+          path: workflow_repo # في مجلد منفصل
 
-      - name: 📥 استنساخ المستودع الهدف (Full Access)
+      # الخطوة 2: استنساخ المستودع الهدف الذي سنقوم بتعديله
+      - name: 📥 استنساخ المستودع الهدف
         uses: actions/checkout@v4
         with:
           repository: ${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}
           token: ${{ env.TARGET_TOKEN }}
           path: target
-          fetch-depth: 0
-          ref: ${{ github.event.inputs.base_branch }}
 
-      - name: ⚙️ إعداد هوية Git
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
-          git config user.name "Genesis Forge AI"
-          git config user.email "genesis-forge@ai.engineer"
+      # الخطوة 3: إعداد Python
+      - name: 🐍 إعداد بيئة Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-      - name: 📊 تحليل شامل للمستودع
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
-          echo "📂 الملفات: $(find . -type f | wc -l)"
-          echo "📁 المجلدات: $(find . -type d | wc -l)"
-          echo "💾 الحجم: $(du -sh . | cut -f1)"
-
-      - name: 🧠 إرسال البرومبت إلى DeepSeek (معطل مؤقتاً للاختبار)
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Skipping DeepSeek call for this test run."
-
-      - name: ✍️ تطبيق تعديل بسيط (للاختبار)
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
-          echo "Hello from Genesis Forge AI - $(date)" >> README.md
-          echo "Test modification applied."
-
-      - name: 💾 Commit, Push, and Create PR
-        shell: bash
-        env:
-          BASE_BRANCH: ${{ github.event.inputs.base_branch }}
-          AI_PROMPT: ${{ github.event.inputs.ai_prompt }}
-          OWNER: ${{ github.event.inputs.target_owner }}
-          REPO: ${{ github.event.inputs.target_repo }}
-        run: |
-          set -euo pipefail
-          cd target
-          BRANCH_NAME="genesis-forge-ai-$(date +%s)"
-          git checkout -b "$BRANCH_NAME"
-          git add -A
-          if ! git diff --cached --quiet; then
-            echo "توجد تغييرات، سيتم عمل commit."
-            git commit -m "🤖 AI Test Optimization via Genesis Forge"
-            
-            echo "Pushing changes to new branch: $BRANCH_NAME"
-            git push origin "$BRANCH_NAME"
-            
-            echo "Creating Pull Request..."
-            
-            PR_TITLE="🤖 Genesis Forge AI Test (${{ github.run_id }})"
-            PR_BODY="تعديل اختباري تلقائي عبر AI بناءً على البرومبت:\n\n> ${AI_PROMPT}"
-
-            JSON_PAYLOAD=$(jq -n \
-              --arg title "$PR_TITLE" \
-              --arg head "$BRANCH_NAME" \
-              --arg base "$BASE_BRANCH" \
-              --arg body "$PR_BODY" \
-              '{title: $title, head: $head, base: $base, body: $body}')
-
-            curl -f -X POST \
-              -H "Authorization: token ${{ env.TARGET_TOKEN }}" \
-              -H "Accept: application/vnd.github+json" \
-              -d "$JSON_PAYLOAD" \
-              "https://api.github.com/repos/$OWNER/$REPO/pulls"
-              
-          else
-            echo "⚠️ لا توجد تغييرات لتطبيقها."
-          fi
-
-      - name: ✅ الخلاصة
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "🔥 Genesis Forge AI أنهى العمل بنجاح"
+      # الخطوة 4: إرسال البرومبت إلى DeepSeek
+      - name: 🧠 إرسال البرومبت إلى DeepSeek
+        id: deep
