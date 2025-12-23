@@ -1,110 +1,146 @@
-# اسم الـ workflow الذي سيظهر في واجهة GitHub Actions
-name: 🤖 Ultimate Forge Pro - The AI Engineer
+name: 🔥 Genesis Forge Pro – Full Access AI Engineer
 
-# القسم الذي يحدد متى يتم تشغيل هذا الـ workflow
 on:
-  # يسمح بالتشغيل اليدوي من واجهة GitHub أو عبر API
   workflow_dispatch:
-    # تعريف المدخلات التي سيتم طلبها عند التشغيل اليدوي
     inputs:
       target_owner:
-        description: 'مالك المستودع الهدف (الذي سيتم تعديله)'
+        description: 'مالك المستودع الهدف'
         required: true
+        type: string
       target_repo:
         description: 'اسم المستودع الهدف'
         required: true
-      target_token:
-        description: 'GitHub PAT للمستودع الهدف (مع صلاحيات repo و workflow)'
+        type: string
+      ai_prompt:
+        description: 'البرومبت القادم من منصتك'
         required: true
-      custom_command:
-        description: 'الأمر المطلوب من واجهة Forge Optimizer (مثال: تحسين أداء الكود)'
+        type: string
+      # =================================================================
+      # ✅ تم التعديل هنا ليطابق تطبيقك
+      # =================================================================
+      improvement_type:
+        description: 'نوع التحسين المطلوب'
         required: true
+        type: choice
+        options: [partial, full, refactor, security, performance, all, code_quality]
+        default: all
+      # =================================================================
+      base_branch:
+        description: 'الفرع الأساسي'
+        required: true
+        default: main
 
-# تعريف المهام (Jobs) التي سيتم تنفيذها
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+  TARGET_TOKEN: ${{ secrets.TARGET_TOKEN }}
+
 jobs:
-  # اسم المهمة، يمكن أن يكون أي اسم
-  total-control-execution:
-    # تحديد نوع الخادم الافتراضي الذي ستعمل عليه المهمة
+  genesis-forge:
     runs-on: ubuntu-latest
-    
-    # تعريف الخطوات (Steps) التي ستنفذها المهمة بالترتيب
+    timeout-minutes: 45
+
     steps:
-      # الخطوة الأولى: جلب المستودع الهدف
-      - name: 📥 جلب المستودع الهدف
+      - name: 🔐 فحص الوصول الكامل
+        shell: bash
         run: |
-          # الخروج فورًا في حال حدوث أي خطأ
-          set -e
-          # استنساخ المستودع الهدف باستخدام التوكن لتأكيد الصلاحية
-          git clone "https://x-access-token:${{ github.event.inputs.target_token }}@github.com/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}.git" workspace
-          # الدخول إلى مجلد العمل
-          cd workspace
-          # إعداد هوية Git لعملية الـ commit لاحقًا
-          git config --global user.name "Genesis Forge AI"
-          git config --global user.email "ai@genesis-forge.com"
+          set -euo pipefail
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: token ${{ env.TARGET_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}")
+          if [ "$code" != "200" ]; then
+            echo "❌ لا يوجد وصول كامل إلى المستودع الهدف. رمز الحالة: $code"
+            exit 1
+          fi
+          echo "✅ وصول كامل مؤكد"
 
-      # الخطوة الثانية: مسح بنية الملفات
-      - name: 🔍 مسح شامل لبنية الملفات
+      - name: 📥 استنساخ المستودع الهدف (Full Access)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.inputs.target_owner }}/${{ github.event.inputs.target_repo }}
+          token: ${{ env.TARGET_TOKEN }}
+          path: target
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.base_branch }}
+
+      - name: ⚙️ إعداد هوية Git
+        shell: bash
         run: |
-          cd workspace
-          # إنشاء قائمة بكل الملفات والمجلدات لإعطاء سياق للذكاء الاصطناعي
-          find . -maxdepth 4 > ../full_structure.txt
+          set -euo pipefail
+          cd target
+          git config user.name "Genesis Forge AI"
+          git config user.email "genesis-forge@ai.engineer"
 
-      # الخطوة الثالثة: توليد خطة عمل (محاكاة لاستدعاء ذكاء اصطناعي)
-      - name: 🤖 توليد خطة العمل (بناءً على أمر الواجهة)
+      - name: 📊 تحليل شامل للمستودع
+        shell: bash
         run: |
-          # في التطبيق الحقيقي، هذه الخطوة ستستدعي API لنموذج لغوي
-          # حاليًا، هي تنشئ ملف JSON ثابت كمثال
-          cat << 'EOF' > ../ai_response.json
-          {
-            "summary": "تنفيذ الأمر: ${{ github.event.inputs.custom_command }}",
-            "plan": [
-              {
-                "action": "modify",
-                "file_path": "README.md",
-                "original_code": "مرحباً",
-                "suggested_code": "مرحباً بك في المستودع المحسّن!"
-              },
-              {
-                "action": "create",
-                "file_path": "FORGE_LOG.md",
-                "content": "# سجل Forge Optimizer\n\nتم تنفيذ الأمر التالي بنجاح:\n**${{ github.event.inputs.custom_command }}**"
-              }
-            ]
-          }
-          EOF
+          set -euo pipefail
+          cd target
+          echo "📂 الملفات: $(find . -type f | wc -l)"
+          echo "📁 المجلدات: $(find . -type d | wc -l)"
+          echo "💾 الحجم: $(du -sh . | cut -f1)"
 
-      # الخطوة الرابعة: تنفيذ التعديلات المخطط لها
-      - name: ⚙️ تنفيذ التعديلات
-        # استخدام '|' للسماح بكتابة سكربت متعدد الأسطر
+      - name: 🧠 إرسال البرومبت إلى DeepSeek (معطل مؤقتاً للاختبار)
+        shell: bash
         run: |
-          echo "🔧 جاري إعداد البيئة..."
-          # تثبيت الأدوات اللازمة: jq لتحليل JSON و python3 لتشغيل السكربت
-          sudo apt-get update && sudo apt-get install -y jq python3
-          
-          echo "🐍 إنشاء سكربت Python للتعديل الآمن..."
-          # استخدام 'cat' لإنشاء ملف سكربت بايثون مؤقت. هذا يحل كل مشاكل المسافات البادئة في YAML
-          cat > ../modifier.py << 'EOF'
-import sys
-import os
+          set -euo pipefail
+          echo "Skipping DeepSeek call for this test run."
 
-def modify_file(file_path, original, suggested):
-    try:
-        if not os.path.exists(file_path):
-            print(f"❌ الملف غير موجود: {file_path}")
-            return False
+      - name: ✍️ تطبيق تعديل بسيط (للاختبار)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          echo "Hello from Genesis Forge AI - $(date)" >> README.md
+          echo "Test modification applied."
 
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        new_content = content.replace(original, suggested)
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(new_content)
-        print(f"✅ تم تعديل الملف: {file_path}")
-        return True
+      - name: 💾 Commit, Push, and Create PR
+        shell: bash
+        env:
+          BASE_BRANCH: ${{ github.event.inputs.base_branch }}
+          AI_PROMPT: ${{ github.event.inputs.ai_prompt }}
+          OWNER: ${{ github.event.inputs.target_owner }}
+          REPO: ${{ github.event.inputs.target_repo }}
+        run: |
+          set -euo pipefail
+          cd target
+          BRANCH_NAME="genesis-forge-ai-$(date +%s)"
+          git checkout -b "$BRANCH_NAME"
+          git add -A
+          if ! git diff --cached --quiet; then
+            echo "توجد تغييرات، سيتم عمل commit."
+            git commit -m "🤖 AI Test Optimization via Genesis Forge"
             
-    except Exception as e:
-        print(f"❌ حدث خطأ استثنائي أثناء تعديل الملف {file_path}: {e}")
-        return False
+            echo "Pushing changes to new branch: $BRANCH_NAME"
+            git push origin "$BRANCH_NAME"
+            
+            echo "Creating Pull Request..."
+            
+            PR_TITLE="🤖 Genesis Forge AI Test (${{ github.run_id }})"
+            PR_BODY="تعديل اختباري تلقائي عبر AI بناءً على البرومبت:\n\n> ${AI_PROMPT}"
 
-def create_file(file_path, content):
+            JSON_PAYLOAD=$(jq -n \
+              --arg title "$PR_TITLE" \
+              --arg head "$BRANCH_NAME" \
+              --arg base "$BASE_BRANCH" \
+              --arg body "$PR_BODY" \
+              '{title: $title, head: $head, base: $base, body: $body}')
+
+            curl -f -X POST \
+              -H "Authorization: token ${{ env.TARGET_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              -d "$JSON_PAYLOAD" \
+              "https://api.github.com/repos/$OWNER/$REPO/pulls"
+              
+          else
+            echo "⚠️ لا توجد تغييرات لتطبيقها."
+          fi
+
+      - name: ✅ الخلاصة
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "🔥 Genesis Forge AI أنهى العمل بنجاح"
