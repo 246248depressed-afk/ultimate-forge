@@ -1,0 +1,58 @@
+# اسم الـ Workflow الذي سيظهر في صفحة Actions في GitHub
+name: Chimera Architect AI
+
+# متى يتم تشغيل هذا الـ Workflow؟
+on:
+  # 1. التشغيل اليدوي (من واجهة GitHub)
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'المهمة المطلوبة من الذكاء الاصطناعي'
+        required: true
+        default: 'أضف زرًا جديدًا لونه أزرق'
+
+  # 2. التشغيل المجدول (تلقائيًا)
+  schedule:
+    - cron: '0 */6 * * *'
+
+# الصلاحيات التي يحتاجها الـ Workflow ليتمكن من تعديل الملفات في المستودع
+permissions:
+  contents: write
+
+# المهام (Jobs) التي سيتم تنفيذها
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # الخطوة 1: سحب الكود من المستودع
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # الخطوة 2: إعداد بيئة Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # الخطوة 3: تثبيت المكتبات المطلوبة
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      # الخطوة 4: تشغيل "المهندس" (السكربت الرئيسي)
+      - name: Run Chimera Architect AI
+        run: python architect.py
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          TASK_PROMPT: ${{ github.event.inputs.task || 'قم بتحسين التصميم الحالي ليكون أكثر حداثة' }}
+
+      # الخطوة 5: رفع التغييرات إلى المستودع
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'Chimera Architect AI'
+          git config --global user.email 'actions@github.com'
+          git add -A
+          git diff --staged --quiet || git commit -m "AI Architect: تحديث المصنع بناءً على المهمة المطلوبة"
+          git push
